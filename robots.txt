@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# 배포 후 실제 도메인으로 수정하세요
+Sitemap: https://example.com/sitemap.xml
