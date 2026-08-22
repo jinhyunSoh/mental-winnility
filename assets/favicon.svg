@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <!-- 두 개의 말풍선 = 토론 -->
+  <path d="M14 18h24a4 4 0 0 1 4 4v13a4 4 0 0 1-4 4H24l-8 7v-7h-2a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#FFFFFF" opacity="0.92"/>
+  <path d="M32 28h18a4 4 0 0 1 4 4v11a4 4 0 0 1-4 4h-2v6l-7-6H32a4 4 0 0 1-4-4V32a4 4 0 0 1 4-4z" fill="#EA580C"/>
+</svg>
