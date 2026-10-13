@@ -3,7 +3,11 @@ name: Build Timer.exe
 on:
   push:
     branches: [timer]
+    paths-ignore: ["release/**"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,3 +25,13 @@ jobs:
         with:
           name: Timer-exe
           path: dist/Timer.exe
+      - name: Commit exe to branch
+        shell: bash
+        run: |
+          mkdir -p release
+          cp dist/Timer.exe release/Timer.exe
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release/Timer.exe
+          git commit -m "Add built Timer.exe [skip ci]" || echo "no change"
+          git push
