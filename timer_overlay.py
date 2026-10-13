@@ -5,6 +5,7 @@
 
 사용법
 - 프리셋 버튼(1·5·10·25·50분)으로 시간 설정
+- 직접 입력: ✎ 버튼 또는 시간 숫자를 더블클릭 → 25(분), 1:30(1분 30초), 1:00:00(1시간), 90초 등
 - 시간 숫자 위에서 마우스 휠: ±1분 / Shift+휠: ±10초
 - ▶ 시작 / ⏸ 일시정지, ↺ 초기화, ✕ 종료
 
@@ -33,6 +34,32 @@ ALARM_A = "#c62828"
 ALARM_B = "#7f0000"
 
 
+def parse_time(text):
+    """'25' → 25분, '90초'/'90s' → 90초, '1:30' → 1분30초, '1:00:00' → 1시간. 실패하면 None."""
+    t = text.strip().replace("：", ":").replace(" ", "").lower()
+    if not t:
+        return None
+    try:
+        if ":" in t:
+            parts = [float(x) if x else 0.0 for x in t.split(":")]
+            if len(parts) == 2:
+                sec = parts[0] * 60 + parts[1]
+            elif len(parts) == 3:
+                sec = parts[0] * 3600 + parts[1] * 60 + parts[2]
+            else:
+                return None
+        elif t.endswith(("초", "s", "sec")):
+            sec = float(t.rstrip("초sec"))
+        elif t.endswith(("시간", "h")):
+            sec = float(t.rstrip("시간h")) * 3600
+        else:
+            sec = float(t.rstrip("분min")) * 60
+    except ValueError:
+        return None
+    sec = int(round(sec))
+    return sec if 0 < sec <= 24 * 3600 else None
+
+
 def fmt(seconds):
     seconds = max(0, int(math.ceil(seconds)))
     h, rem = divmod(seconds, 3600)
@@ -51,6 +78,7 @@ class TimerApp:
         self.alarm = None
         self.flash_widgets = []
         self.flash_on = False
+        self.input_win = None
 
         # 작은 오버레이 창 설정
         root.title("타이머")
@@ -78,6 +106,7 @@ class TimerApp:
         ctrl.pack()
         self.play_btn = self._btn(ctrl, "▶ 시작", self.toggle, width=8)
         self.play_btn.pack(side="left", padx=1)
+        self._btn(ctrl, "✎", self.open_input, width=3).pack(side="left", padx=1)
         self._btn(ctrl, "↺", self.reset, width=3).pack(side="left", padx=1)
         self._btn(ctrl, "✕", root.destroy, width=3).pack(side="left", padx=1)
 
@@ -85,6 +114,9 @@ class TimerApp:
         for w in (box, self.label):
             w.bind("<ButtonPress-1>", self._drag_start)
             w.bind("<B1-Motion>", self._drag_move)
+
+        # 시간 숫자 더블클릭 → 직접 입력
+        self.label.bind("<Double-Button-1>", lambda e: self.open_input())
 
         # 마우스 휠로 시간 조절
         self.label.bind("<MouseWheel>", self._on_wheel)                 # Windows / macOS
@@ -189,6 +221,70 @@ class TimerApp:
             self.show_alarm()
         else:
             self.tick_id = self.root.after(200, self._tick)
+
+    # ---------- 시간 직접 입력 ----------
+    def open_input(self):
+        if self.input_win is not None and self.input_win.winfo_exists():
+            self.input_win.lift()
+            self.input_win.focus_force()
+            return
+        d = tk.Toplevel(self.root)
+        self.input_win = d
+        d.title("시간 입력")
+        d.configure(bg=BG)
+        d.resizable(False, False)
+        d.attributes("-topmost", True)
+
+        f = tk.Frame(d, bg=BG, padx=14, pady=12)
+        f.pack()
+        tk.Label(f, text="시간을 입력하세요", font=(FONT, 11, "bold"), fg=FG, bg=BG).pack(anchor="w")
+        tk.Label(f, text="25 → 25분   1:30 → 1분 30초   1:00:00 → 1시간   90초",
+                 font=(FONT, 9), fg="#aaaaaa", bg=BG).pack(anchor="w", pady=(2, 8))
+
+        var = tk.StringVar(value=fmt(self.set_seconds))
+        entry = tk.Entry(f, textvariable=var, font=(MONO, 18), width=12, justify="center",
+                         bg="#2b2b2b", fg=FG, insertbackground=FG, relief="flat")
+        entry.pack(fill="x", ipady=4)
+        err = tk.Label(f, text="", font=(FONT, 9), fg=WARN, bg=BG)
+        err.pack(anchor="w", pady=(4, 6))
+
+        def apply(start):
+            sec = parse_time(var.get())
+            if sec is None:
+                err.config(text="형식을 확인해 주세요 (예: 25, 1:30, 90초)")
+                return
+            self._stop()
+            self.set_seconds = sec
+            self.remaining = sec
+            self.update_label()
+            close()
+            if start:
+                self.toggle()
+
+        def close():
+            if self.input_win is not None:
+                self.input_win.destroy()
+                self.input_win = None
+
+        btns = tk.Frame(f, bg=BG)
+        btns.pack(fill="x")
+        self._btn(btns, "▶ 바로 시작", lambda: apply(True), width=10).pack(side="left")
+        self._btn(btns, "설정만", lambda: apply(False), width=6).pack(side="left", padx=4)
+        self._btn(btns, "취소", close, width=5).pack(side="right")
+
+        d.bind("<Return>", lambda e: apply(True))
+        d.bind("<Escape>", lambda e: close())
+        d.protocol("WM_DELETE_WINDOW", close)
+
+        # 타이머 창 근처에 띄우기
+        d.update_idletasks()
+        x = max(0, self.root.winfo_x() + self.root.winfo_width() - d.winfo_width())
+        y = self.root.winfo_y() + self.root.winfo_height() + 8
+        d.geometry(f"+{x}+{y}")
+        d.lift()
+        d.focus_force()
+        entry.focus_set()
+        entry.select_range(0, "end")
 
     # ---------- 전체화면 알림 ----------
     def show_alarm(self):
