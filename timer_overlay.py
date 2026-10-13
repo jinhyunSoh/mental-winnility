@@ -222,6 +222,26 @@ class TimerApp:
         else:
             self.tick_id = self.root.after(200, self._tick)
 
+    # ---------- 창을 맨 앞 + 키보드 포커스로 ----------
+    def _force_foreground(self, win):
+        """Windows는 다른 프로그램을 쓰는 중이면 새 창이 키보드 입력을 가져가지 못하게 막음.
+        Alt 키 신호를 한 번 보내 그 제한을 풀고 창을 앞으로 가져옴."""
+        if win is None or not win.winfo_exists():
+            return
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                hwnd = int(win.wm_frame(), 16)
+                user32.keybd_event(0x12, 0, 0, 0)   # Alt down
+                user32.keybd_event(0x12, 0, 2, 0)   # Alt up
+                user32.ShowWindow(hwnd, 5)
+                user32.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+        win.lift()
+        win.focus_force()
+
     # ---------- 시간 직접 입력 ----------
     def open_input(self):
         if self.input_win is not None and self.input_win.winfo_exists():
@@ -281,8 +301,7 @@ class TimerApp:
         x = max(0, self.root.winfo_x() + self.root.winfo_width() - d.winfo_width())
         y = self.root.winfo_y() + self.root.winfo_height() + 8
         d.geometry(f"+{x}+{y}")
-        d.lift()
-        d.focus_force()
+        self._force_foreground(d)
         entry.focus_set()
         entry.select_range(0, "end")
 
@@ -325,8 +344,11 @@ class TimerApp:
         for key in ("<Escape>", "<Return>", "<space>"):
             a.bind(key, lambda e: self.dismiss())
 
-        a.lift()
-        a.focus_force()
+        # 화면 아무 데나 클릭해도 키보드 입력을 받도록
+        a.bind("<Button-1>", lambda e: a.focus_force())
+        # 포커스를 확실히 가져오도록 몇 번 재시도
+        for ms in (0, 150, 500, 1200, 2500):
+            self.root.after(ms, lambda: self.alarm and self._force_foreground(self.alarm))
         self._flash()
         self._beep(0)
 
